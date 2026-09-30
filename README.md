@@ -6,11 +6,15 @@ This is an unofficial personal project. It is not affiliated with Cinecat or Tiz
 
 ## Installation
 
-In TizenBrew, use Module Manager → Add GitHub module and enter this repository's `owner/name@main`. Launch Cinecat TV. This module is not a standalone WGT or Smart Hub tile.
+In TizenBrew, use Module Manager → Add GitHub module and enter `DrLuxo/cinecat-tizenbrew@main`. Launch Cinecat TV. This module is not a standalone WGT or Smart Hub tile.
+
+Use that same source for future updates. Old sources ending in commit IDs such as `@2c70393` are frozen snapshots and cannot receive fixes. Switch once to `@main`; after an update, fully reboot the TV to clear TizenBrew's in-memory script cache. CDN updates can also take time to propagate. If an older entry remains, remove it from Module Manager to avoid opening it accidentally.
 
 ## Controls
 
 Arrows move, Enter selects, and Samsung Return is translated to the website's Back key. Use the on-screen player controls; dedicated media keys are not implemented. Cross-origin embedded players may handle input separately.
+
+The first-run New/Classic chooser has a yellow focus border and supports arrows and OK. Version 0.1.3 removes the previous continuous button polling and the full-page scans on keypresses. It discovers the chooser at startup or when relevant content is inserted, caches its two buttons, and leaves the site's normal navigation alone. TV-mode button transitions are made immediate to remove their 260–300 ms animation delay. This removes measured adapter overhead; actual TV responsiveness and playback still depend on the website, hardware and network.
 
 ## Compatibility
 
