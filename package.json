@@ -1,0 +1,12 @@
+{
+  "name": "cinecat-tizenbrew-personal",
+  "version": "0.1.0",
+  "description": "Experimental personal TizenBrew launcher for Cinecat TV mode.",
+  "appName": "Cinecat TV",
+  "packageType": "mods",
+  "websiteURL": "https://beta.cinecat.eu/tv",
+  "main": "remote.js",
+  "evaluateScriptOnDocumentStart": true,
+  "keys": [],
+  "private": true
+}
