@@ -4,6 +4,72 @@
   if (window.__cinecatRemoteInstalled) return;
   window.__cinecatRemoteInstalled = true;
 
+  // The first-run chooser sits outside Cinecat's TV navigation system.
+  // Handle only its two visible choices, leaving the TV page's keys alone.
+  var selected = null;
+  var heldKeys = {};
+  function choices() {
+    var buttons = document.querySelectorAll('button');
+    var fresh = null, classic = null;
+    for (var i = 0; i < buttons.length; i++) {
+      var button = buttons[i];
+      if (!button.getClientRects().length || button.disabled) continue;
+      var label = (button.textContent || '').replace(/\s+/g, ' ').trim();
+      if (/^New\b/.test(label) && /refreshed/i.test(label)) fresh = button;
+      if (/^Classic\b/.test(label) && /original layout/i.test(label)) classic = button;
+    }
+    return fresh && classic ? [fresh, classic] : [];
+  }
+  function focusChoice(buttons, index) {
+    if (!document.getElementById('cinecat-remote-style')) {
+      var style = document.createElement('style');
+      style.id = 'cinecat-remote-style';
+      style.textContent = '[data-cinecat-remote-focus="true"] { outline: 5px solid #ffdc55 !important; outline-offset: 5px !important; }';
+      (document.head || document.documentElement).appendChild(style);
+    }
+    for (var i = 0; i < buttons.length; i++) {
+      if (i === index) buttons[i].setAttribute('data-cinecat-remote-focus', 'true');
+      else buttons[i].removeAttribute('data-cinecat-remote-focus');
+    }
+    selected = buttons[index];
+    selected.focus();
+  }
+  function ensureChoiceFocus() {
+    var buttons = choices();
+    if (!buttons.length) { selected = null; return; }
+    if (buttons.indexOf(document.activeElement) !== -1) {
+      if (selected !== document.activeElement) focusChoice(buttons, buttons.indexOf(document.activeElement));
+    } else focusChoice(buttons, Math.max(0, buttons.indexOf(selected)));
+  }
+  function chooserKey(event) {
+    var key = event.keyCode || {ArrowLeft:37, ArrowUp:38, ArrowRight:39, ArrowDown:40, Enter:13}[event.key];
+    if (event.type === 'keyup') {
+      if (heldKeys[key]) {
+        delete heldKeys[key];
+        event.preventDefault();
+        event.stopImmediatePropagation();
+      }
+      return;
+    }
+    var buttons = choices();
+    if (!buttons.length || [13,37,38,39,40].indexOf(key) === -1) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    heldKeys[key] = true;
+    var index = buttons.indexOf(document.activeElement);
+    if (index === -1) index = Math.max(0, buttons.indexOf(selected));
+    if (key === 13) {
+      if (!event.repeat) buttons[index].click();
+    } else {
+      focusChoice(buttons, key === 37 || key === 38 ? 0 : 1);
+    }
+  }
+  window.addEventListener('keydown', chooserKey, true);
+  window.addEventListener('keyup', chooserKey, true);
+  // Injection can precede the asynchronously rendered dialog.
+  window.setInterval(ensureChoiceFocus, 500);
+  ensureChoiceFocus();
+
   function samsungBack(event) {
     if (event.keyCode !== 10009 && event.key !== 'XF86Back') return;
     // Capture the Samsung Return key before it navigates out of the website.
