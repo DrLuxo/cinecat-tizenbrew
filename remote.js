@@ -8,25 +8,46 @@
   // Handle only its two visible choices, leaving the TV page's keys alone.
   var selected = null;
   var heldKeys = {};
-  function choices() {
-    var buttons = document.querySelectorAll('button');
-    var fresh = null, classic = null;
-    for (var i = 0; i < buttons.length; i++) {
-      var button = buttons[i];
-      if (!button.getClientRects().length || button.disabled) continue;
-      var label = (button.textContent || '').replace(/\s+/g, ' ').trim();
-      if (/^New\b/.test(label) && /refreshed/i.test(label)) fresh = button;
-      if (/^Classic\b/.test(label) && /original layout/i.test(label)) classic = button;
-    }
-    return fresh && classic ? [fresh, classic] : [];
+  var fresh = null;
+  var classic = null;
+  function connected(button) {
+    return button && document.documentElement.contains(button);
   }
-  function focusChoice(buttons, index) {
+  function inspectButton(button) {
+    var label = (button.textContent || '').replace(/\s+/g, ' ').trim();
+    // Most buttons are catalogue cards: do not ask the layout engine about them.
+    if (/^New\b/.test(label) && /refreshed/i.test(label)) fresh = button;
+    if (/^Classic\b/.test(label) && /original layout/i.test(label)) classic = button;
+  }
+  function inspectTree(root) {
+    if (root.nodeType === 3) root = root.parentElement;
+    if (!root || root.nodeType !== 1) return;
+    // Labels can arrive after their button, nested inside spans.
+    var parent = root;
+    while (parent && parent.nodeType === 1 && parent.tagName !== 'BUTTON') parent = parent.parentElement;
+    if (parent) inspectButton(parent);
+    if (root.tagName !== 'BUTTON') {
+      var buttons = root.querySelectorAll('button');
+      for (var i = 0; i < buttons.length; i++) inspectButton(buttons[i]);
+    }
+  }
+  function choices() {
+    if (!connected(fresh) || !connected(classic)) return [];
+    if (fresh.disabled || classic.disabled) return [];
+    return fresh.getClientRects().length && classic.getClientRects().length ? [fresh, classic] : [];
+  }
+  function installStyles() {
     if (!document.getElementById('cinecat-remote-style')) {
       var style = document.createElement('style');
       style.id = 'cinecat-remote-style';
-      style.textContent = '[data-cinecat-remote-focus="true"] { outline: 5px solid #ffdc55 !important; outline-offset: 5px !important; }';
+      style.textContent = '[data-cinecat-remote-focus="true"] { outline: 5px solid #ffdc55 !important; outline-offset: 5px !important; }' +
+        '.tv button { transition-duration: 0s !important; transition-delay: 0s !important; }';
       (document.head || document.documentElement).appendChild(style);
     }
+  }
+  function focusChoice(buttons, index) {
+    installStyles();
+    if (selected === buttons[index] && document.activeElement === selected) return;
     for (var i = 0; i < buttons.length; i++) {
       if (i === index) buttons[i].setAttribute('data-cinecat-remote-focus', 'true');
       else buttons[i].removeAttribute('data-cinecat-remote-focus');
@@ -51,8 +72,15 @@
       }
       return;
     }
+    if ([13,37,38,39,40].indexOf(key) === -1) return;
+    // An OK hold must not spill into the underlying TV page after choosing.
+    if (key === 13 && heldKeys[key]) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return;
+    }
     var buttons = choices();
-    if (!buttons.length || [13,37,38,39,40].indexOf(key) === -1) return;
+    if (!buttons.length) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     heldKeys[key] = true;
@@ -66,9 +94,32 @@
   }
   window.addEventListener('keydown', chooserKey, true);
   window.addEventListener('keyup', chooserKey, true);
-  // Injection can precede the asynchronously rendered dialog.
-  window.setInterval(ensureChoiceFocus, 500);
-  ensureChoiceFocus();
+  window.addEventListener('blur', function () { heldKeys = {}; });
+  // Discover once, then only examine newly inserted subtrees. No polling and
+  // no full-page scans on keypresses or while a video is playing.
+  function startDiscovery() {
+    installStyles();
+    inspectTree(document.documentElement);
+    ensureChoiceFocus();
+    if (typeof MutationObserver !== 'undefined') {
+      var observer = new MutationObserver(function (records) {
+        if (!connected(fresh)) fresh = null;
+        if (!connected(classic)) classic = null;
+        if (fresh && classic) return;
+        for (var i = 0; i < records.length; i++) {
+          var nodes = records[i].addedNodes;
+          for (var j = 0; j < nodes.length; j++) inspectTree(nodes[j]);
+        }
+        if (fresh && classic) ensureChoiceFocus();
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
+  // TizenBrew can also inject into embedded players; the chooser is top-level.
+  if (window.top === window.self) {
+    if (document.documentElement) startDiscovery();
+    else document.addEventListener('DOMContentLoaded', startDiscovery, { once: true });
+  }
 
   function samsungBack(event) {
     if (event.keyCode !== 10009 && event.key !== 'XF86Back') return;
