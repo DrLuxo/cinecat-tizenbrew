@@ -4,6 +4,57 @@
   if (window.__cinecatRemoteInstalled) return;
   window.__cinecatRemoteInstalled = true;
 
+  // Match Cinecat's native Low performance mode preset. Keep all unrelated
+  // preferences, account data and watch history untouched.
+  function enableLowPerformanceMode() {
+    if (window.top !== window.self || !window.location || window.location.hostname !== 'beta.cinecat.eu') return;
+    var preferenceKey = '__MW::preferences';
+    var reloadKey = 'cinecat-tizenbrew-low-performance-reload-v1';
+    var preset = {
+      enableLowPerformanceMode: true,
+      enableThumbnails: false,
+      enableAutoplay: false,
+      enableDiscover: false,
+      enableFeatured: false,
+      enableDetailsModal: false,
+      enableImageLogos: false,
+      enablePauseOverlay: false,
+      forceCompactEpisodeView: true
+    };
+    function savePreset() {
+      var raw = window.localStorage.getItem(preferenceKey);
+      var data = raw ? JSON.parse(raw) : { state: {}, version: 0 };
+      if (!data || typeof data !== 'object' || Array.isArray(data)) return false;
+      var state = Object.prototype.hasOwnProperty.call(data, 'state') ? data.state : data;
+      if (!state || typeof state !== 'object' || Array.isArray(state)) return false;
+      var changed = false;
+      Object.keys(preset).forEach(function (key) {
+        if (state[key] !== preset[key]) { state[key] = preset[key]; changed = true; }
+      });
+      if (changed) window.localStorage.setItem(preferenceKey, JSON.stringify(data));
+      return changed;
+    }
+    try {
+      if (!savePreset()) {
+        window.sessionStorage.removeItem(reloadKey);
+        return;
+      }
+      // The website may already have hydrated its in-memory preferences.
+      // Apply once more on departure, then reload once so native stores read
+      // the preset. Guard against repeated reloads if storage is unavailable.
+      if (!window.sessionStorage.getItem(reloadKey)) {
+        window.sessionStorage.setItem(reloadKey, '1');
+        window.addEventListener('pagehide', function () {
+          try { savePreset(); } catch (error) {}
+        }, { once: true });
+        window.location.reload();
+      }
+    } catch (error) {
+      // Never erase malformed settings or block the app when storage is denied.
+    }
+  }
+  enableLowPerformanceMode();
+
   // The first-run chooser sits outside Cinecat's TV navigation system.
   // Handle only its two visible choices, leaving the TV page's keys alone.
   var selected = null;
